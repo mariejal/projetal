@@ -12,7 +12,7 @@ class Desamb:
 	def __init__(self, vb_choisi):
 
 		self.vb_choisi = vb_choisi
-		self.liste_fichier = [f for f in os.listdir("data/" + vb_choisi) if f[0] != "."] #verifier que la liste est ds le bon ordre
+		self.liste_fichier = [f for f in os.listdir("data/" + vb_choisi) if f[0] != "."] #a revoir: verifier que la liste est ds le bon ordre
 		
 		self.conll_stream = open("data/" + vb_choisi + "/" + self.liste_fichier[0])
 		self.gold_stream = open("data/" + vb_choisi + "/" + self.liste_fichier[1])
@@ -20,8 +20,6 @@ class Desamb:
 
 		self.golds = self.gold_stream.readlines() #liste
 		self.tok_ids = self.tok_ids_stream.readlines() #liste
-
-		#print(self.conll_stream)
 
 		liste_conll = []
 		for sentence in (self.conll_stream.read()).split("\n\n"):
@@ -44,11 +42,10 @@ class Desamb:
 
 		for i in range(len(phr)):
 
-			b = False
 			mot = phr[i].split("\t")
 			print(mot)
 
-			#nbr d'arguments + 
+			#--nbr d'arguments + prep
 			#premiere condition = pour les cas ou le gouverneur est qqch comme "4|3"
 			#deuxieme condition = cas normaux 
 			if (len(mot[6])>0 and verb_id in [int(n) for n in mot[6].split("|")]) or (len(mot[6])==1 and int(mot[6]) == verb_id):
@@ -61,7 +58,7 @@ class Desamb:
 
 					obs["prep"][mot[2]] += 1
 
-			#fenetre de mots
+			#--fenetre de mots
 			#verbe_id-1-i est la position du mot courant par rapport au verbe
 			pos_mot = verb_id-1-i # on fait -1 pcq en python on compte à partir de 0
 			if pos_mot > 0 and pos_mot <= taille_fenetre and mot[3] != "P":
