@@ -21,7 +21,7 @@ class Desamb:
 		self.golds = self.gold_stream.readlines() #liste
 		self.tok_ids = self.tok_ids_stream.readlines() #liste
 
-		liste_conll = []
+		liste_conll = [] #contient toutes les phrases sous leur forme conll
 		for sentence in (self.conll_stream.read()).split("\n\n"):
 			liste_conll += [sentence.split("\n")]
 
