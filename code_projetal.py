@@ -25,9 +25,10 @@ class Desamb:
 		for sentence in (self.conll_stream.read()).split("\n\n"):
 			liste_conll += [sentence.split("\n")]
 
-		#bloc qui existe ici pour tester
+		"""bloc qui existe ici pour tester
 		for i in range(len(liste_conll)): 
 			self.extraction_conll(liste_conll[i], i, 3)
+		"""
 
 	def extraction_conll(self, phr, sentence_id, taille_fenetre):
 
@@ -75,3 +76,109 @@ class Desamb:
 
 
 d = Desamb(args.vb_choisi)
+
+def emb2dic(fichier):
+
+	dic_emb = defaultdict(np.array)
+
+	with open(fichier,encoding="utf8") as stream :
+
+		line = stream.readline()
+
+		while line : 
+
+			line = line.strip('\n').split(" ")
+
+			if line[0] not in dic_emb and line[0].isalpha():
+
+				word_emb = np.array([float(comp) for comp in line[1:]])
+
+				taille_emb = len(word_emb)
+
+				dic_emb[line[0]] = word_emb
+
+			line = stream.readline()
+
+	stream.close()
+
+	return dic_emb,taille_emb
+
+
+
+dic_emb = emb2dic("w2v_final")[0]
+
+taille_emb = emb2dic("w2v_final")[1]
+
+
+
+def average_emb(dic_emb,phr,sentence_id,taille_fenetre):
+
+	tmp = 0
+
+	dic_av_emb = defaultdict(float)
+
+	for word_emb in dic_emb:
+
+		tmp=0
+
+		if word_emb not in dic_av_emb:
+
+			for comp in dic_emb[word_emb]:
+
+				tmp+=comp
+
+				if len(dic_emb[word_emb]) !=0:
+
+					dic_av_emb[word_emb] = tmp/len(dic_emb[word_emb])
+
+				else : 
+
+					print(word_emb)
+
+	return dic_av_emb
+
+def create_vector(phr,sentence_id,taille_fenetre):
+
+	obs = d.extraction_conll(phr,sentence_id,taille_fenetre)
+
+	print(obs)
+
+	taille_embeg = taille_emb
+
+	sum_emb = np.zeros(taille_embeg)
+
+	nb_arg =obs["nb_arg"][""]
+
+	for elt in obs["mots_fenetre"]:
+
+		elt = elt.split(" ")
+
+		if elt[2] in dic_emb : 
+
+			print(dic_emb[elt[2]])
+
+			sum_emb = sum_emb + dic_emb[elt[2]]
+
+	
+
+	average_emb = sum_emb/taille_embeg
+
+	#print(average_emb) 		
+
+	vector = np.zeros(9)
+
+	vector[nb_arg-1]=1
+
+	# fonctionne pas car vector[8] est un np array alors que vector[i!=8] sont des reels
+
+	# vector[8] = average_emb #la moyenne des embedding des mots de la fenetre
+
+	
+
+	#reste a ajouter les prepositions
+
+	
+
+for i in range (len(d.liste_conll)-1):
+
+	create_vector(d.liste_conll[i],i,3)	
