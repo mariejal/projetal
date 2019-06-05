@@ -2,6 +2,7 @@ import os
 from collections import defaultdict
 import argparse
 import pprint as pp
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument("vb_choisi", help = "verbe à clusteriser", default = None)
@@ -25,10 +26,10 @@ class Desamb:
 		for sentence in (self.conll_stream.read()).split("\n\n"):
 			liste_conll += [sentence.split("\n")]
 
-		"""bloc qui existe ici pour tester
+		#bloc qui existe ici pour tester
 		for i in range(len(liste_conll)): 
 			self.extraction_conll(liste_conll[i], i, 3)
-		"""
+		
 
 	def extraction_conll(self, phr, sentence_id, taille_fenetre):
 
@@ -74,8 +75,11 @@ class Desamb:
 		input()
 
 
-
 d = Desamb(args.vb_choisi)
+
+
+#sum_emb/taille_embeg
+
 
 def emb2dic(fichier):
 
