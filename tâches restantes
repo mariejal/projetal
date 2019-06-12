@@ -4,4 +4,4 @@
 -->évaluation (fonctions à faire ?)
 --> mettre le kmeans en attribut de la classe Desamb 
 --> partie graphique pour le non supervisé et le semi-supervisé pour comparer les résultats  
-
+--> comparer resultat de notre kmeans avec le kmeans implémenté par sklearn 
