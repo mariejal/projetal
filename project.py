@@ -48,9 +48,12 @@ class Desamb:
 		#on regarde les infos du verbe_id
 		info_verbid = phr[verb_id-1].split("\t")
 
-		if not ( "dm=inf" in info_verbid[5].split("|") and "obj.p" or "obj" in re.split('||:', info_verbid[7]) ):
-			vb_gouv = int(info_verbid[6].split("|")[0]) #c'est mtn son gouverneur qui gouverne notre recherche d'infos
-###############
+		#si le lemme dépend d'un vb racine, il faut regarder les arguments de ce dernier
+		if ("dm=ind" not in info_verbid[5].split("|")):
+
+			if not ( "dm=inf" in info_verbid[5].split("|") and "obj.p" or "obj" in re.split('||:', info_verbid[7]) ):
+				vb_gouv = int(info_verbid[6].split("|")[0]) #c'est mtn son gouverneur qui gouverne notre recherche d'infos
+
 		for i in range(len(phr)):
 
 			mot = phr[i].split("\t")
@@ -65,7 +68,7 @@ class Desamb:
 			if (vb_gouv in gouv):
 				not_wanted = ["P","PONCT","P+D","V","C","V"]
 
-				if (mot[3] not in not_wanted) and ("mod" not in mot[7].split("|") and obs["nb_arg"][""]<3):
+				if (mot[3] not in not_wanted) and ("mod" not in mot[7].split("|")):
 					print("mot[3]:",mot[3])
 					obs["nb_arg"][""]+=1
 				
@@ -130,6 +133,7 @@ def get_liste_prep():
 		obs = d.extraction_conll(d.liste_conll[i],i,3)
 		if obs["nb_arg"][""]>=4:
 	return(liste_prep)
+
 #-- crée le vecteur associé à chaque phrase
 def create_vector(phr,sentence_id,taille_fenetre):
 	obs = d.extraction_conll(phr,sentence_id,taille_fenetre)
