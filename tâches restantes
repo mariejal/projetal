@@ -2,6 +2,6 @@
 -->structure pour l'éval: deux listes indexées avec vecteurs et classes CHECK 
 -->faire la moyenne des x vecteurs extraits qui permettent de déterminer une graine
 -->évaluation (fonctions à faire ?)
---> mettre le kmeans en attribut de la classe Desamb 
+--> mettre le kmeans en attribut de la classe Desamb CHECK
 --> partie graphique pour le non supervisé et le semi-supervisé pour comparer les résultats  
 --> comparer resultat de notre kmeans avec le kmeans implémenté par sklearn 
