@@ -6,6 +6,7 @@ from collections import defaultdict
 import argparse
 import pprint as pp
 import numpy as np
+np.seterr(divide='ignore', invalid='ignore')
 import re
 import matplotlib.pyplot as plt
 import random
@@ -101,7 +102,7 @@ class Desamb:
 
 		self.kmeans = None 
 
-		self.X, self.Y = [], []
+		self.X, self.Yb = [], []
 		self.gold2vec = {}
 		self.taille_graine = int(taille_graine)
 		self.seeds = []
@@ -265,17 +266,19 @@ class Desamb:
 
 		self.X = datas
 		self.Y = golds
+		#print("Y", self.Y)
 
 		#création d'un dico avec key=classe_gold, value=liste des vecteurs associés
 		gold2vec = defaultdict(list)
 		for i in range(len(datas)):
 			gold2vec[golds[i]].append(datas[i])
+
 		self.gold2vec = gold2vec
-		print("gold2vec", [(elt,len(gold2vec[elt])) for elt in gold2vec]) #juste un test 
+		#print("gold2vec", [(elt,len(gold2vec[elt])) for elt in gold2vec]) #juste un test 
 
 		#on peut instancier le Kmeans et créer les seeds mtn qu'on a gold2vec
 		self.kmeans = K_Means(k=len(self.gold2vec))
-		self.seeds = self.create_seeds(len(self.gold2vec))
+		#self.seeds = self.create_seeds(len(self.gold2vec))
 
 
 
@@ -380,7 +383,8 @@ class K_Means:
 		for i in range (self.max_iter):
 
 			self.classifications = {}
-			
+			print("i", i)
+			#input()
 			for j in range (self.k):
 				self.classifications[j] = []
 
@@ -390,7 +394,6 @@ class K_Means:
 				classification = distances.index(min(distances)) #renvoie l'indice de la classe/du controide le plus proche
 				self.classifications[classification].append(featureset) #on ajoute l'exemple  au dico de classification
 
-			print("i", i)
 			print("evaluation epoch n°%s :" % str(i+1))
 			pp.pprint(self.eval(data, golds))
 			input()
@@ -403,7 +406,7 @@ class K_Means:
 
 
 			#on teste si nos centroides sont optimaux   
-			optimized = True
+			#optimized = True
 
 			for c in self.centroids:
 				original_centroid = prev_centroids[c]
@@ -411,14 +414,16 @@ class K_Means:
 				current_centroid = self.centroids[c]
 				#print(current_centroid)
 				#calcule la somme des écarts pour chaque feature et compare la valeur à la tolérance
-				if np.sum((current_centroid-original_centroid)/original_centroid*100.0) > self.tol:  
-					print(np.sum((current_centroid-original_centroid)/original_centroid*100.0))
-					optimized = False
+				#print("sum: ", np.sum((current_centroid-original_centroid)/original_centroid*100.0))
+				#input()
+				#if np.sum((current_centroid-original_centroid)/original_centroid*100.0) > self.tol:  
+				#	print(np.sum((current_centroid-original_centroid)/original_centroid*100.0))
+				#	optimized = False
 
-			if optimized:
-				break
+			#if optimized:
+			#	break
 
-			print("fit: ", self.classifications)
+			#print("fit: ", self.classifications)
 
 	def predict(self, data):
 		distances = [np.linalg.norm(data-self.centroids[centroid]) for centroid in self.centroids] 
@@ -435,7 +440,8 @@ class K_Means:
 		tmp = [list(ex) for ex in listeVec]
 		listeVec = tmp
 		self.evaluation = {} #dico de la forme evaluation = {0 (centroide): 1(classe): 50%, 2: 30%...}
-		
+		#print(listeEtique)
+		#input()
 		for centroid in self.classifications:
 			
 			cluster_size = len(self.classifications[centroid])
@@ -448,6 +454,8 @@ class K_Means:
 				idxTrueClass = listeVec.index(vector) #l'index du vecteur dans listeVec
 				#print("vecteur: ", vector, "   ", "index : ", idxTrueClass)
 				etiquette = listeEtique[idxTrueClass] #l'etiquette dans la listeEtiqu
+				#print("et", etiquette)
+				#input()
 				self.evaluation[centroid][etiquette] += (1/cluster_size) * 100 #on incrémente en pourcentage
 
 		return self.evaluation
@@ -461,14 +469,17 @@ d.createX_Y()
 
 
 # non supervisé
+#print("d.Y", d.Y)
+#input()
 d.kmeans.fit(d.X, d.Y)
-print("final eval:", d.kmeans.eval(d.X, d.Y))
+print("\nfinal eval:")
+print(pp.pprint(d.kmeans.eval(d.X, d.Y)))
 input()
 #print("centroids", d.kmeans.centroids)
 
 # supervisé
-d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds) #on réinstancie le kmeans avec nos seeds
-d.kmeans.fit(d.X,d.Y)
+#d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds) #on réinstancie le kmeans avec nos seeds
+#d.kmeans.fit(d.X,d.Y)
 
 
 #--------------graphiques / comparaisons 
