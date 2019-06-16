@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
 from collections import defaultdict
 import argparse
@@ -20,47 +23,102 @@ liste_prep = [] #la liste des prep qui peuvent suivre le verbe
 
 class Desamb:
 
+	"""
+	Classe qui implémente un désambiguisateur.
+
+
+	Attributs:
+
+	vb_choisi: str
+		lemme à désambiguiser
+
+	taille_fenetre: int
+		fenêtre utilisée pour extraire le contexte du lemme
+
+	golds, tok_ids: list
+		contiennent respectivement les classes golds et les ids des tokens cibles
+
+	emb: defaultdict(float)
+		contient les embeddings de chaque mot présent dans le fichier d'embeddings -> emb[mot] = son embedding
+
+	liste_conll: list
+		contient toutes les phrases sous leur forme conll
+
+	kmeans: K_Means
+		algorithme de clustering utilisé par le désambiguisateur
+
+	X, Y: list
+		X contient les vecteurs et Y les classes golds. Y[i] = classe gold de X[i]
+
+	gold2vec: dict
+		contient tous les vecteurs pour une classe -> gold2vec[gold] = [ vecteurs associés à cette classe ]
+
+	taille_graine: int
+		nombre d'exemples utilisés pour créer une graine
+
+	seeds: list
+		graines passées au KMeans
+
+	liste_prep: list
+		contient toutes les prépositions présentes dans le corpus
+
+
+	Méthodes:
+
+		extraction_conll(self, phr, sentence_id, taille_fenetre)
+
+		emb2dic(self, fichier)
+
+		average_emb(self, dic_emb, phr, sentence_id, taille_fenetre)
+
+		create_vector(self, phr, sentence_id, taille_fenetre, taille_emb, dic_emb)
+
+		createX_Y(self)
+
+		create_seeds(self, nb_clusters)
+	"""
+
 	def __init__(self, vb_choisi, taille_graine):
 
 		self.vb_choisi = vb_choisi
-		self.liste_fichier = [f for f in os.listdir("data/" + vb_choisi) if f[0] != "."] #a revoir: verifier que la liste est ds le bon ordre
-		self.conll_stream = open("data/" + vb_choisi + "/" + self.liste_fichier[0],encoding="utf8")
-		self.gold_stream = open("data/" + vb_choisi + "/" + self.liste_fichier[1],encoding="utf8")
-		self.tok_ids_stream = open("data/" + vb_choisi + "/" + self.liste_fichier[2],encoding="utf8")
+		self.taille_fenetre = 3 
+		
+		#/!\ a revoir: verifier que la liste est ds le bon ordre
+		liste_fichier = [f for f in os.listdir("data/" + vb_choisi) if f[0] != "."]
+		conll_stream = open("data/" + vb_choisi + "/" + liste_fichier[0], encoding="utf8")
+		gold_stream = open("data/" + vb_choisi + "/" + liste_fichier[1], encoding="utf8")
+		tok_ids_stream = open("data/" + vb_choisi + "/" + liste_fichier[2], encoding="utf8")
 
-		self.golds = self.gold_stream.readlines() #liste
-		self.tok_ids = self.tok_ids_stream.readlines() #liste
+		self.golds = gold_stream.readlines()
+		self.tok_ids = tok_ids_stream.readlines()
+		
 		self.emb = defaultdict(float)
-		self.liste_conll = [] #contient toutes les phrases sous leur forme conll
-		for sentence in (self.conll_stream.read()).split("\n\n"):
+
+		self.liste_conll = []
+		for sentence in (conll_stream.read()).split("\n\n"):
 			self.liste_conll += [sentence.split("\n")]
 
-		self.kmeans = K_Means()
+		self.kmeans = K_Means() #donner k en argument en fct du vb
 
-		self.X = []
-		self.Y = []
+		self.X, self.Y = [], []
+		self.gold2vec = {}
+		self.taille_graine = int(taille_graine)
+		self.seeds = []
 
 		self.liste_prep = []
-		self.gold2vec = {}
-
-		self.taille_graine = taille_graine
-
-		"""#bloc qui existe ici pour tester
-		for i in range(len(liste_conll)): 
-			self.extraction_conll(liste_conll[i], i, 3)
-		"""
 
 			
-	def extraction_conll(self,phr,sentence_id,taille_fenetre):
-		obs = defaultdict(lambda: defaultdict(int)) #pas sure d'utiliser des dico de dico
+	def extraction_conll(self, phr, sentence_id, taille_fenetre):
+		
+		obs = defaultdict(lambda: defaultdict(int))
 
 		gold = int(self.golds[sentence_id])
 		obs["gold"][""] = gold
 		verb_id = int(self.tok_ids[sentence_id])
-		#print("---------------------- " + str(verb_id))
-		#print()
 
-		vb_gouv = verb_id #id du verbe gouvernant le lemme(init a lui mm)
+
+		#id du gouverneur du verbe (initialisé à lui-même)
+		vb_gouv = verb_id
 
 		#on regarde les infos du verbe_id
 		info_verbid = phr[verb_id-1].split("\t")
@@ -112,6 +170,7 @@ class Desamb:
 		#input()
 		return obs
 
+
 	#--retourne un dictionnaire key=mot, value=embedding du mot, pour chaque mot du fichier
 	def emb2dic(self, fichier):
 		dic_emb = defaultdict(np.array)
@@ -128,9 +187,8 @@ class Desamb:
 		return dic_emb,taille_emb
 
 	
-
 	#--renvoie un dictionnaire key=mot, value= la moyenne des embeddings des mots de la fenetre
-	def average_emb(self, dic_emb,phr,sentence_id,taille_fenetre):
+	def average_emb(self, dic_emb, phr, sentence_id, taille_fenetre):
 		tmp = 0
 		dic_av_emb = defaultdict(float)
 		for word_emb in dic_emb:
@@ -144,6 +202,7 @@ class Desamb:
 						print(word_emb)
 		return dic_av_emb
 
+
 	#--trouve la liste complète des prep eventuelles a mettre dans le vecteur
 	#def get_liste_prep():
 	#	for i in range(len(d.liste_conll)-1):
@@ -151,30 +210,25 @@ class Desamb:
 	#		obs = d.extraction_conll(d.liste_conll[i],i,3)
 	#		if obs["nb_arg"][""]>=4: return(liste_prep)
 
+
 	#-- crée le vecteur associé à chaque phrase
 	def create_vector(self, phr, sentence_id, taille_fenetre, taille_emb, dic_emb):
+		
 		obs = d.extraction_conll(phr, sentence_id, taille_fenetre)
-		#print(self.liste_prep,len(self.liste_prep))
-		#pp.pprint(obs)
-		#input()
-
 		taille_embeg = taille_emb
 		sum_emb = np.zeros(taille_embeg)
 		nb_arg =obs["nb_arg"][""]
-		#print("nb arg =", nb_arg)
+
+
 		for elt in obs["mots_fenetre"]:
 			elt = elt.split(" ")
 			if elt[2] in dic_emb : 
 				#print(dic_emb[elt[2]])
 				sum_emb = sum_emb + dic_emb[elt[2]]
 		
-		average_emb = sum_emb/taille_embeg
-		#print(average_emb) 		
+		average_emb = sum_emb/taille_embeg		
 
 		vector = np.zeros(3+1+taille_embeg)
-		#print(vector)
-		#print(len(vector))
-		#input()
 		#vect[pos]=1 si i+1 est le nombre d'arguments du verbe dans la phrase 
 		vector[nb_arg-1]=1
 		#print(vector)
@@ -184,22 +238,18 @@ class Desamb:
 		#for i in range(len(liste_prep)):
 		#	if liste_prep[i] in list_of_prep:
 		if len(obs["prep"])>0:
-			#print(obs["prep"])		
+
 			vector[3]=1
-			#print(vector)
-			#input()
 
 		#--les composantes restantes du vecteur correspondent aux composantes du word embedding	
 		for i in range(3+1,len(vector)):
 			vector[i] = average_emb[i-(3+1)]
-		#print(list_of_prep)
-		#print(vector)
-		#input()
 
 		return(vector, obs["gold"][""]) #utile pour créer la liste des golds dans la suite
 
 
 	def createX_Y(self):
+
 		datas = [] #la liste des vecteurs
 		golds = [] #la liste des golds 
 		### golds[i] est l'idx de la classe associée au vecteur datas[i]
@@ -209,7 +259,7 @@ class Desamb:
 
 		dic_emb, taille_emb = self.emb2dic("w2v_final")
 		for i in range (len(self.liste_conll)-1):
-			vector, gold = self.create_vector(self.liste_conll[i], i, 3, taille_emb, dic_emb)
+			vector, gold = self.create_vector(self.liste_conll[i], i, self.taille_fenetre, taille_emb, dic_emb)
 			datas.append(vector)
 			golds.append(gold)
 
@@ -218,51 +268,89 @@ class Desamb:
 
 		#création d'un dico avec key=classe_gold, value=liste des vecteurs associés
 		gold2vec = defaultdict(list)
-		#print(gold2vec)
 		for i in range(len(datas)):
 			gold2vec[golds[i]].append(datas[i])
 		self.gold2vec = gold2vec
 		#print([(elt,len(gold2vec[elt])) for elt in gold2vec]) #juste un test 
 
+		#on peut créer les seeds mtn qu'on a gold2vec
+		self.seeds = self.create_seeds(len(self.gold2vec))
 
-	def create_seeds(self, nb_clusters): #a prederminer pour chq vb
-		seeds = []
 
+	def create_seeds(self, nb_clusters): #/!\ nb_clusters a prederminer pour chq vb
+
+		#pb à p-ê rajouter dans rapport: galère avec les types et les opérations entre matrices?
+
+		#on initialise une matrice (nb_cluster, taille d'un vecteur)
+		seeds = np.empty( (nb_clusters, len(self.X[0])), dtype=list ) 
+		
+		#position actuelle dans seeds
+		n = 0
+	
 		for gold in self.gold2vec:
 
-			ex = np.array([])
-
-			print("gold2vec avant", self.gold2vec[gold])
-
-			for i in range(len(self.taille_graine)):
-
-				r = random.randint(0,len(self.gold2vec[gold]))
-				obj = self.gold2vec[gold][r]
-				print("r", r)
-				#j= np.where(np.isin(self.gold2vec[gold], r))
-				#print(j)
-				print(np.array_equal(r, self.gold2vec[gold][r]))
-				np.delete(self.gold2vec[gold], r)
-				input()
-				#self.gold2vec[gold].remove(r)
-				print("gold2vec apres", self.gold2vec)
-				np.append(ex, r, axis=0)
-				print("ex apres", ex)
-				
-
-				#on supprime du dataset l'ex tiré au sort
-				id_to_del = self.datas.index(r)
-				del self.X[id_to_del]
-				del self.Y[id_to_del]
-				input()
-
-				#faire la moyenne des exemples
-				#moy = np.mean(ex)
-				#seeds.append(moy)
+			exs = []
 			
+			for i in range(self.taille_graine): #/!\ mettre qqpart des garde fous sur taille_graine
+												#certaines gold n'ont que 3 ex
+
+				#on sélectione un objet au hasard dans la classe voulue
+				#puis on le supprime - du dico gold2vec
+				#					 - du dataset
+				r = random.randint(0, len(self.gold2vec[gold]))-1
+				obj = self.gold2vec[gold][r]
+				del self.gold2vec[gold][r]
+
+				#galere pour retrouver obj dans le dataset
+				#-> méthode trouvée est trop lourde: à modifier si ya le temps
+				#   pcq il faut mettre X en liste de liste pour utiliser .index()
+				#	et X est une liste d'array
+				tmp = [list(ex) for ex in self.X]
+				id_a_supp = tmp.index(list(obj))
+				del self.X[id_a_supp]
+				del self.Y[id_a_supp]
+
+				#on ajoute l'ex tiré au sort à la liste d'exemples
+				exs += [obj]
+
+
+			#on fait la moyenne des x exemples tirés au sort
+			#et on ajoute le résultat à la liste de graines
+			moy = np.mean(exs, axis=0)
+			seeds[n] = moy
+			n+=1
+				
 
 
 class K_Means:
+
+	"""
+	Classe qui implémente un algorithme de clustering K-Means.
+
+
+	Attributs:
+
+	k: int
+		nombre de clusters
+
+	tol: int
+
+	max_iter: int
+		nombre d'itération maximum
+
+	seeds: list
+		éventuelles graines passées à l'algo
+
+
+	Méthodes:
+
+		fit(self, data)
+
+		predict(self, data)
+
+		evaluation
+	"""
+
     def __init__(self, k=4, tol=0.001, max_iter=300, seeds=None):
         self.k = k
         self.tol = tol
@@ -284,9 +372,6 @@ class K_Means:
             self.centroids[i] = seeds[i]
 
         print("centroids: ", self.centroids)
-
-        
-
 
         for i in range (self.max_iter):
             self.classifications = {}
@@ -334,12 +419,6 @@ class K_Means:
 
 #######################################################MAIN
 
-
-
-#clf=K_Means()
-#clf.fit(X)
-
-
 d = Desamb(args.vb_choisi, args.taille_graine)
 d.createX_Y()
 
@@ -349,14 +428,15 @@ d.createX_Y()
 
 
 # supervisé
-d.create_seeds(4)
-d.kmeans = Kmeans(seeds=d.seeds) #on réinstancie le kmeans avec nos seeds
+d.kmeans = K_Means(seeds=d.seeds) #on réinstancie le kmeans avec nos seeds
 d.kmeans.fit(d.X)
 
 
+#--------------graphiques / comparaisons 
+
 # plot centroids mais foireux 
 centroids = np.array([item for item in d.kmeans.centroids.values()])
-print(centroids)
+
 plt.scatter(centroids[:,0], centroids[:,1], marker="x", color='r')
 colors = 10*["g","r","c","b","k"]
 
