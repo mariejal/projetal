@@ -23,7 +23,6 @@ liste_prep = [] #la liste des prep qui peuvent suivre le verbe
 
 class Desamb:
 
-
 	"""
 	Classe qui implémente un désambiguisateur.
 
