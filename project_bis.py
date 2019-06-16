@@ -99,7 +99,7 @@ class Desamb:
 		for sentence in (conll_stream.read()).split("\n\n"):
 			self.liste_conll += [sentence.split("\n")]
 
-		self.kmeans = K_Means() #donner k en argument en fct du vb
+		self.kmeans = None 
 
 		self.X, self.Y = [], []
 		self.gold2vec = {}
@@ -145,7 +145,6 @@ class Desamb:
 				not_wanted = ["P","PONCT","P+D","V","C","V"]
 
 				if (mot[3] not in not_wanted) and ("mod" not in mot[7].split("|")):
-					#print("mot[3]:",mot[3])
 					obs["nb_arg"][""]+=1
 				
 				if mot[3]=="P":
@@ -272,13 +271,15 @@ class Desamb:
 		for i in range(len(datas)):
 			gold2vec[golds[i]].append(datas[i])
 		self.gold2vec = gold2vec
-		#print([(elt,len(gold2vec[elt])) for elt in gold2vec]) #juste un test 
+		print("gold2vec", [(elt,len(gold2vec[elt])) for elt in gold2vec]) #juste un test 
 
-		#on peut créer les seeds mtn qu'on a gold2vec
+		#on peut instancier le Kmeans et créer les seeds mtn qu'on a gold2vec
+		self.kmeans = K_Means(k=len(self.gold2vec))
 		self.seeds = self.create_seeds(len(self.gold2vec))
 
 
-	def create_seeds(self, nb_clusters): #/!\ nb_clusters a prederminer pour chq vb
+
+	def create_seeds(self, nb_clusters):
 
 		#pb à p-ê rajouter dans rapport: galère avec les types et les opérations entre matrices?
 
@@ -352,69 +353,104 @@ class K_Means:
 		evaluation
 	"""
 
-    def __init__(self, k=4, tol=0.001, max_iter=300, seeds=None):
-        self.k = k
-        self.tol = tol
-        self.max_iter = max_iter
-        self.seeds = seeds
+	def __init__(self, k, tol=0.001, max_iter=300, seeds=None):
+		self.k = k
+		self.tol = tol
+		self.max_iter = max_iter
+		self.seeds = seeds
+		self.centroids = {}
+		self.classifications = {}
 
-    def fit(self, data):
+	def fit(self, data, golds):
 
-        self.centroids = {}
+		#self.centroids = {}
 
-        if self.seeds==None: 
-            np.random.shuffle(data)
-            print(data)
-            #selectionne les centroids de départ (les deux premiers points de la liste de donnees melangee)
-            for i in range (self.k):
-                print(i)
-                self.centroids[i] = data[i] 
-        else: 
-            self.centroids[i] = seeds[i]
+		if self.seeds==None: 
+			np.random.shuffle(data)
+			#selectionne les centroids de départ (les deux premiers points de la liste de donnees melangee)
+			for i in range (self.k):
+				#print(i)
+				self.centroids[i] = data[i] 
+		else: 
+			for i in range (self.k): 
+				self.centroids[i] = self.seeds[i]
 
-        print("centroids: ", self.centroids)
+		#print("centroids: ", self.centroids)
 
-        for i in range (self.max_iter):
-            self.classifications = {}
+		for i in range (self.max_iter):
 
-            for i in range (self.k):
-                self.classifications[i] = []
+			self.classifications = {}
+			
+			for j in range (self.k):
+				self.classifications[j] = []
 
-            for featureset in data:
-                #disatance du point avec les centroides
-                distances = [np.linalg.norm(featureset-self.centroids[centroid]) for centroid in self.centroids] 
-                classification = distances.index(min(distances)) #renvoie l'indice de la classe/du controide le plus proche
-                self.classifications[classification].append(featureset) #on ajoute l'exemple  au dico de classification
+			for featureset in data:
+				#disatance du point avec les centroides
+				distances = [np.linalg.norm(featureset-self.centroids[centroid]) for centroid in self.centroids] 
+				classification = distances.index(min(distances)) #renvoie l'indice de la classe/du controide le plus proche
+				self.classifications[classification].append(featureset) #on ajoute l'exemple  au dico de classification
 
-            prev_centroids = dict(self.centroids) #on stocke les centroids précédents
+			print("i", i)
+			print("evaluation epoch n°%s :" % str(i+1))
+			pp.pprint(self.eval(data, golds))
+			input()
 
-            for classification in self.classifications:
-                #on calcule les nouveaux centroides
-                self.centroids[classification] = np.average(self.classifications[classification],axis=0)
+			prev_centroids = dict(self.centroids) #on stocke les centroids précédents
 
-
-            #on teste si nos centroides sont optimaux   
-            optimized = True
-
-            for c in self.centroids:
-                original_centroid = prev_centroids[c]
-                #print(original_centroid)
-                current_centroid = self.centroids[c]
-                #print(current_centroid)
-                #calcule la somme des écarts pour chaque feature et compare la valeur à la tolérance
-                if np.sum((current_centroid-original_centroid)/original_centroid*100.0) > self.tol:  
-                    print(np.sum((current_centroid-original_centroid)/original_centroid*100.0))
-                    optimized = False
-            
-            if optimized:
-                break
-            
+			for classification in self.classifications:
+				#on calcule les nouveaux centroides
+				self.centroids[classification] = np.average(self.classifications[classification],axis=0)
 
 
-    def predict(self, data):
-        distances = [np.linalg.norm(data-self.centroids[centroid]) for centroid in self.centroids] 
-        classification = distances.index(min(distances))
-        return classification
+			#on teste si nos centroides sont optimaux   
+			optimized = True
+
+			for c in self.centroids:
+				original_centroid = prev_centroids[c]
+				#print(original_centroid)
+				current_centroid = self.centroids[c]
+				#print(current_centroid)
+				#calcule la somme des écarts pour chaque feature et compare la valeur à la tolérance
+				if np.sum((current_centroid-original_centroid)/original_centroid*100.0) > self.tol:  
+					print(np.sum((current_centroid-original_centroid)/original_centroid*100.0))
+					optimized = False
+
+			if optimized:
+				break
+
+			print("fit: ", self.classifications)
+
+	def predict(self, data):
+		distances = [np.linalg.norm(data-self.centroids[centroid]) for centroid in self.centroids] 
+		classification = distances.index(min(distances))
+		return classification
+
+
+	def eval(self, listeVec, listeEtique):
+
+		#print("clasification: ", self.classifications)
+		#listeVec = listeVec.tolist() #passe de np.array a liste simple
+		#print("listeVec: ", listeVec)
+		#print(listeVec)
+		tmp = [list(ex) for ex in listeVec]
+		listeVec = tmp
+		self.evaluation = {} #dico de la forme evaluation = {0 (centroide): 1(classe): 50%, 2: 30%...}
+		
+		for centroid in self.classifications:
+			
+			cluster_size = len(self.classifications[centroid])
+			cluster = self.classifications[centroid] #la liste des vecteurs associés au cluster
+			self.evaluation[centroid] = defaultdict(int)
+
+			for vector in cluster:
+				
+				vector = vector.tolist()
+				idxTrueClass = listeVec.index(vector) #l'index du vecteur dans listeVec
+				#print("vecteur: ", vector, "   ", "index : ", idxTrueClass)
+				etiquette = listeEtique[idxTrueClass] #l'etiquette dans la listeEtiqu
+				self.evaluation[centroid][etiquette] += (1/cluster_size) * 100 #on incrémente en pourcentage
+
+		return self.evaluation
 
 
 
@@ -425,12 +461,14 @@ d.createX_Y()
 
 
 # non supervisé
-#d.kmeans.fit(d.X)
-
+d.kmeans.fit(d.X, d.Y)
+print("final eval:", d.kmeans.eval(d.X, d.Y))
+input()
+#print("centroids", d.kmeans.centroids)
 
 # supervisé
-d.kmeans = K_Means(seeds=d.seeds) #on réinstancie le kmeans avec nos seeds
-d.kmeans.fit(d.X)
+d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds) #on réinstancie le kmeans avec nos seeds
+d.kmeans.fit(d.X,d.Y)
 
 
 #--------------graphiques / comparaisons 
