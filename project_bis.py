@@ -14,10 +14,15 @@ from matplotlib import style
 style.use('ggplot')
 import numpy as np
 import random
+import glob
+from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
+from scipy import sparse
+import scipy.spatial.distance as distance
+from sklearn.decomposition import PCA
 
 parser = argparse.ArgumentParser()
 parser.add_argument("vb_choisi", help = "verbe à clusteriser", default = None)
-parser.add_argument("taille_graine", help="nb d'exemple pour constituer une graine", default = 3)
+parser.add_argument("pourcentage_graine", help="nb d'exemple pour constituer une graine", default = 3)
 args = parser.parse_args()
 
 liste_prep = [] #la liste des prep qui peuvent suivre le verbe
@@ -55,7 +60,7 @@ class Desamb:
 	gold2vec: dict
 		contient tous les vecteurs pour une classe -> gold2vec[gold] = [ vecteurs associés à cette classe ]
 
-	taille_graine: int
+	pourcentage_graine: int
 		nombre d'exemples utilisés pour créer une graine
 
 	seeds: list
@@ -80,16 +85,14 @@ class Desamb:
 		create_seeds(self, nb_clusters)
 	"""
 
-	def __init__(self, vb_choisi, taille_graine):
+	def __init__(self, vb_choisi, pourcentage_graine):
 
 		self.vb_choisi = vb_choisi
-		self.taille_fenetre = 3 
+		self.taille_fenetre = 10
 		
-		#/!\ a revoir: verifier que la liste est ds le bon ordre
-		liste_fichier = [f for f in os.listdir("data/" + vb_choisi) if f[0] != "."]
-		conll_stream = open("data/" + vb_choisi + "/" + liste_fichier[0], encoding="utf8")
-		gold_stream = open("data/" + vb_choisi + "/" + liste_fichier[1], encoding="utf8")
-		tok_ids_stream = open("data/" + vb_choisi + "/" + liste_fichier[2], encoding="utf8")
+		conll_stream = open(glob.glob("data/" + vb_choisi + "/" + vb_choisi + "*.conll")[0], encoding="utf8")
+		gold_stream = open(glob.glob("data/" + vb_choisi + "/" + vb_choisi + "*.gold")[0], encoding="utf8")
+		tok_ids_stream = open(glob.glob("data/" + vb_choisi + "/" + vb_choisi + "*.tok_ids")[0], encoding="utf8")
 
 		self.golds = gold_stream.readlines()
 		self.tok_ids = tok_ids_stream.readlines()
@@ -104,10 +107,11 @@ class Desamb:
 
 		self.X, self.Yb = [], []
 		self.gold2vec = {}
-		self.taille_graine = int(taille_graine)
+		self.pourcentage_graine = 1 #int(pourcentage_graine)
 		self.seeds = []
 
 		self.liste_prep = []
+
 
 			
 	def extraction_conll(self, phr, sentence_id, taille_fenetre):
@@ -229,23 +233,25 @@ class Desamb:
 		
 		average_emb = sum_emb/taille_embeg		
 
-		vector = np.zeros(3+1+taille_embeg)
+		##vector = np.zeros(3+1+taille_embeg)
+		vector = np.zeros(taille_embeg)
 		#vect[pos]=1 si i+1 est le nombre d'arguments du verbe dans la phrase 
-		vector[nb_arg-1]=1
+		##vector[nb_arg-1]=1
 		#print(vector)
 		#input()
 		#vect[pos]= 1 si la preposition à l'indice pos dans list_prep suit le verbe dans la phr
 		list_of_prep = obs["prep"].keys()
 		#for i in range(len(liste_prep)):
 		#	if liste_prep[i] in list_of_prep:
-		if len(obs["prep"])>0:
+		##if len(obs["prep"])>0:
 
-			vector[3]=1
+		##	vector[3]=1
 
 		#--les composantes restantes du vecteur correspondent aux composantes du word embedding	
-		for i in range(3+1,len(vector)):
-			vector[i] = average_emb[i-(3+1)]
-
+		##for i in range(3+1,len(vector)):
+		for i in range(len(vector)):
+			##vector[i] = average_emb[i-(3+1)]
+			vector[i] = average_emb[i]
 		return(vector, obs["gold"][""]) #utile pour créer la liste des golds dans la suite
 
 
@@ -266,7 +272,6 @@ class Desamb:
 
 		self.X = datas
 		self.Y = golds
-		#print("Y", self.Y)
 
 		#création d'un dico avec key=classe_gold, value=liste des vecteurs associés
 		gold2vec = defaultdict(list)
@@ -274,11 +279,30 @@ class Desamb:
 			gold2vec[golds[i]].append(datas[i])
 
 		self.gold2vec = gold2vec
+		#print("X", self.X)
+		#print("Y", self.Y)
 		#print("gold2vec", [(elt,len(gold2vec[elt])) for elt in gold2vec]) #juste un test 
+
+		"""
+		for gold in self.gold2vec:
+
+			print("gold", gold)
+			for i in range(len(self.gold2vec[gold])-1):
+				#print(1 - distance.cosine(self.gold2vec[gold][i], self.gold2vec[gold][i+1]))
+				c = cosine_similarity([self.gold2vec[gold][i]], [self.gold2vec[gold][i+1]])
+				#dists = euclidean_distances([self.gold2vec[gold][i]], [self.gold2vec[gold][i+1]])
+				print(c)
+				#if dists > 0.6:
+				#	print("dists > 0.6")
+				#	print(self.gold2vec[gold][i])
+				#	print(self.gold2vec[gold][i+1])
+				#	print()
+
+			input()"""
 
 		#on peut instancier le Kmeans et créer les seeds mtn qu'on a gold2vec
 		self.kmeans = K_Means(k=len(self.gold2vec))
-		#self.seeds = self.create_seeds(len(self.gold2vec))
+		self.seeds = self.create_seeds(len(self.gold2vec)) #a décommenter pour le supervisé
 
 
 
@@ -295,8 +319,14 @@ class Desamb:
 		for gold in self.gold2vec:
 
 			exs = []
+
+			#nomrbe d'exemples utilisés pour cette classe
+			taille_graine = len(self.gold2vec[gold])*(self.pourcentage_graine/100)
+			#print("ex gardés pour", gold, "=", taille_graine)
+			if taille_graine<1: taille_graine=1
+			#input()
 			
-			for i in range(self.taille_graine): #/!\ mettre qqpart des garde fous sur taille_graine
+			for i in range(self.pourcentage_graine):#round(taille_graine)): #/!\ mettre qqpart des garde fous sur pourcentage_graine
 												#certaines gold n'ont que 3 ex
 
 				#on sélectione un objet au hasard dans la classe voulue
@@ -324,7 +354,8 @@ class Desamb:
 			moy = np.mean(exs, axis=0)
 			seeds[n] = moy
 			n+=1
-				
+
+		return seeds	
 
 
 class K_Means:
@@ -356,7 +387,7 @@ class K_Means:
 		evaluation
 	"""
 
-	def __init__(self, k, tol=0.001, max_iter=300, seeds=None):
+	def __init__(self, k, tol=0.001, max_iter=30, seeds=None):
 		self.k = k
 		self.tol = tol
 		self.max_iter = max_iter
@@ -368,11 +399,10 @@ class K_Means:
 
 		#self.centroids = {}
 
-		if self.seeds==None: 
+		if len(self.seeds==0): 
 			np.random.shuffle(data)
 			#selectionne les centroids de départ (les deux premiers points de la liste de donnees melangee)
 			for i in range (self.k):
-				#print(i)
 				self.centroids[i] = data[i] 
 		else: 
 			for i in range (self.k): 
@@ -383,18 +413,30 @@ class K_Means:
 		for i in range (self.max_iter):
 
 			self.classifications = {}
-			print("i", i)
+			#print("i", i)
 			#input()
 			for j in range (self.k):
 				self.classifications[j] = []
 
-			for featureset in data:
-				#disatance du point avec les centroides
-				distances = [np.linalg.norm(featureset-self.centroids[centroid]) for centroid in self.centroids] 
-				classification = distances.index(min(distances)) #renvoie l'indice de la classe/du controide le plus proche
-				self.classifications[classification].append(featureset) #on ajoute l'exemple  au dico de classification
+			bonnes_rep = 0
+			for k in range(len(data)):
+				
+				#distance du point avec les centroides
+				#print([self.centroids[centroid] for centroid in self.centroids])
 
-			print("evaluation epoch n°%s :" % str(i+1))
+				#distances = [ euclidean_distances( [data[k]] , [self.centroids[centroid]] ) for centroid in self.centroids ]
+				distances = [np.linalg.norm(data[k]-self.centroids[centroid]) for centroid in self.centroids] 
+				classification = distances.index(min(distances)) #renvoie l'indice de la classe/du controide le plus proche
+
+				self.classifications[classification].append(data[k]) #on ajoute l'exemple  au dico de classification
+				#print("distances", distances)
+				#print("classification", classification)
+				#print("gold", golds[i])
+				#input()
+				if classification == golds[k]: bonnes_rep+=1
+
+				#input()
+			print("evaluation epoch n°%s :" % str(i+1))#, "bonnes_rep", bonnes_rep/len(data))
 			pp.pprint(self.eval(data, golds))
 			input()
 
@@ -402,7 +444,7 @@ class K_Means:
 
 			for classification in self.classifications:
 				#on calcule les nouveaux centroides
-				self.centroids[classification] = np.average(self.classifications[classification],axis=0)
+				self.centroids[classification] = np.average(self.classifications[classification], axis=0)
 
 
 			#on teste si nos centroides sont optimaux   
@@ -424,6 +466,14 @@ class K_Means:
 			#	break
 
 			#print("fit: ", self.classifications)
+
+		"""print("distances centroids")
+		for i in range(len(self.centroids)):
+			if i+1<len(self.centroids):
+				print(euclidean_distances([self.centroids[i]], [self.centroids[i+1]]))
+			else:
+				print(euclidean_distances([self.centroids[i]], [self.centroids[0]]))"""
+
 
 	def predict(self, data):
 		distances = [np.linalg.norm(data-self.centroids[centroid]) for centroid in self.centroids] 
@@ -453,52 +503,65 @@ class K_Means:
 				vector = vector.tolist()
 				idxTrueClass = listeVec.index(vector) #l'index du vecteur dans listeVec
 				#print("vecteur: ", vector, "   ", "index : ", idxTrueClass)
-				etiquette = listeEtique[idxTrueClass] #l'etiquette dans la listeEtiqu
-				#print("et", etiquette)
-				#input()
+				etiquette = listeEtique[idxTrueClass] #l'etiquette dans la listeEtique
 				self.evaluation[centroid][etiquette] += (1/cluster_size) * 100 #on incrémente en pourcentage
 
 		return self.evaluation
 
 
 
-#######################################################MAIN
+####################################################### MAIN
 
-d = Desamb(args.vb_choisi, args.taille_graine)
+d = Desamb(args.vb_choisi, args.pourcentage_graine)
 d.createX_Y()
 
 
 # non supervisé
-#print("d.Y", d.Y)
+#d.kmeans.fit(d.X, d.Y)
+#print("\nfinal eval:")
+#print(pp.pprint(d.kmeans.eval(d.X, d.Y)))
 #input()
-d.kmeans.fit(d.X, d.Y)
-print("\nfinal eval:")
-print(pp.pprint(d.kmeans.eval(d.X, d.Y)))
-input()
 #print("centroids", d.kmeans.centroids)
 
 # supervisé
-#d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds) #on réinstancie le kmeans avec nos seeds
-#d.kmeans.fit(d.X,d.Y)
+#print(d.seeds)
+d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds) #on réinstancie le kmeans avec nos seeds
+#print(d.kmeans.seeds)
+d.kmeans.fit(d.X,d.Y)
 
 
 #--------------graphiques / comparaisons 
 
+
+pca = PCA(n_components=2)
+#X_2d = []
+#X_2d = pca.fit_transform(d.X)
+#print(X_2d)
+#input()
+
+#centroids_2d = []
+#centroids_2d += [pca.fit(c) for c in d.kmeans.classification]
+#print(centroids_2d)
+#input()
+
 # plot centroids mais foireux 
 centroids = np.array([item for item in d.kmeans.centroids.values()])
-
 plt.scatter(centroids[:,0], centroids[:,1], marker="x", color='r')
+
 colors = 10*["g","r","c","b","k"]
 
 
 for centroid in d.kmeans.centroids:
-    for centroid in d.kmeans.centroids:
-        plt.scatter(d.kmeans.centroids[centroid][0], d.kmeans.centroids[centroid][1],
-                    marker="o", color="k", s=150, linewidths=5)
+	val = pca.fit_transform( [d.kmeans.centroids[centroid]] )
+	plt.scatter(val[0], val[1], marker="o", color="k", s=150, linewidths=5)
 
-for classification in d.kmeans.classifications:
+"""for classification in d.kmeans.classifications:
     color = colors[classification]
     for featureset in d.kmeans.classifications[classification]:
-        plt.scatter(featureset[0], featureset[1], marker="x", color=color, s=150, linewidths=5)
-        
-plt.show()
+        print(featureset)
+        featureset = pca.fit(featureset)
+        print(featureset)
+        input()
+        plt.scatter(featureset[0], featureset[1], marker="x", color=color, s=150, linewidths=5)"""
+     
+plt.savefig("graph_%s_pourcentage_%s" % (d.vb_choisi, int(d.pourcentage_graine)))
