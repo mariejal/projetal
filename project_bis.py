@@ -25,7 +25,7 @@ class Desamb:
 
 
 	"""
-	Classe qui implémente un désambiguisateur.
+	Classe qui implémente un désambiguisateur lexical grâce à un Kmeans semi-supervisé.
 
 
 	Attributs:
