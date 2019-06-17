@@ -1,10 +1,10 @@
 -->structure pour le supervisé: clé = idx_cluster, val = la liste des vecteurs associés à ce cluster  CHECK 
 -->structure pour l'éval: deux listes indexées avec vecteurs et classes CHECK 
 -->faire la moyenne des x vecteurs extraits qui permettent de déterminer une graine CHECK
--->évaluation (fonctions à faire ?)
+-->évaluation (fonctions à faire ?) CHECK
 --> mettre le kmeans en attribut de la classe Desamb CHECK
 --> partie graphique pour le non supervisé et le semi-supervisé pour comparer les résultats  
---> comparer resultat de notre kmeans avec le kmeans implémenté par sklearn 
+--> comparer resultat de notre kmeans avec le kmeans implémenté par sklearn /// quels ccl de nos résultats?
 --> commenter fonctions + code
---> mettre des gardes fous sur le nb d'ex utilisés pour faire graines
---> donner un k différent au kmeans selon le vb choisi 
+--> mettre des gardes fous sur le nb d'ex utilisés pour faire graines CHECK
+--> donner un k différent au kmeans selon le vb choisi CHECK
