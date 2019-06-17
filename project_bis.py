@@ -19,6 +19,9 @@ from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 from scipy import sparse
 import scipy.spatial.distance as distance
 from sklearn.decomposition import PCA
+import plotly
+import plotly.plotly as py
+import plotly.graph_objs as go
 
 parser = argparse.ArgumentParser()
 parser.add_argument("vb_choisi", help = "verbe à clusteriser", default = None)
@@ -533,35 +536,66 @@ d.kmeans.fit(d.X,d.Y)
 #--------------graphiques / comparaisons 
 
 
+def matplotlib_to_plotly(cmap, pl_entries):
+    h = 1.0/(pl_entries-1)
+    pl_colorscale = []
+    
+    for k in range(pl_entries):
+        C = map(np.uint8, np.array(cmap(k*h)[:3])*255)
+        for i in range(len(C)):
+        	pl_colorscale.append([k*h, 'rgb'+str((C[0], C[1], C[2]))])
+        
+    return pl_colorscale
+
+
+
 pca = PCA(n_components=2)
-#X_2d = []
-#X_2d = pca.fit_transform(d.X)
-#print(X_2d)
-#input()
-
-#centroids_2d = []
-#centroids_2d += [pca.fit(c) for c in d.kmeans.classification]
-#print(centroids_2d)
-#input()
-
-# plot centroids mais foireux 
+X_2d = pca.fit_transform(d.X)
 centroids = np.array([item for item in d.kmeans.centroids.values()])
-plt.scatter(centroids[:,0], centroids[:,1], marker="x", color='r')
+c_2d = pca.fit_transform(centroids)
+h = .02
 
-colors = 10*["g","r","c","b","k"]
 
+x_min, x_max = X_2d[:, 0].min() - 1, X_2d[:, 0].max() + 1
+y_min, y_max = X_2d[:, 1].min() - 1, X_2d[:, 1].max() + 1
+xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
+Y = d.Y
 
-for centroid in d.kmeans.centroids:
-	val = pca.fit_transform( [d.kmeans.centroids[centroid]] )
-	plt.scatter(val[0], val[1], marker="o", color="k", s=150, linewidths=5)
+"""
+#pour afficher les limites des clusters mais foireux pour l'instant
+back = go.Heatmap(x=xx[0][:len(Y)],
+                  y=xx[0][:len(Y)],
+                  z=Y,
+                  showscale=False,
+                  colorscale=[[0, 'green'], [0.5, 'red'], [1.0, 'rgb(0, 0, 255)']])
+"""
 
-"""for classification in d.kmeans.classifications:
-    color = colors[classification]
-    for featureset in d.kmeans.classifications[classification]:
-        print(featureset)
-        featureset = pca.fit(featureset)
-        print(featureset)
-        input()
-        plt.scatter(featureset[0], featureset[1], marker="x", color=color, s=150, linewidths=5)"""
+#afficher les points
+markers = go.Scatter(x=X_2d[:, 0], 
+                     y=X_2d[:, 1],
+                     showlegend=True,
+                     mode='markers', 
+                     marker=dict(
+                             size=3, color='black'))
+#afficher les centres
+center = go.Scatter(x=c_2d[:, 0],
+                    y=c_2d[:, 1],
+                    showlegend=True,
+                    mode='markers', 
+                    marker=dict(
+                            size=10, color='red'))
+data=[markers, center]
+
+layout = go.Layout(title ='K-means clustering on the digits dataset (PCA-reduced data)<br>'
+                           'Centroids are marked with red',
+                   xaxis=dict(ticks='', showticklabels=True,
+                              zeroline=False),
+                   yaxis=dict(ticks='', showticklabels=True,
+                              zeroline=False))
+fig = go.Figure(data=data, layout=layout)
+
+plotly.offline.plot(fig)
+
+#plt.savefig("graph_%s_pourcentage_%s" % (d.vb_choisi, int(d.pourcentage_graine)))
      
 plt.savefig("graph_%s_pourcentage_%s" % (d.vb_choisi, int(d.pourcentage_graine)))
