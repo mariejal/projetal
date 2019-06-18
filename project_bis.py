@@ -19,9 +19,9 @@ from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 from scipy import sparse
 import scipy.spatial.distance as distance
 from sklearn.decomposition import PCA
-import plotly
-import plotly.plotly as py
-import plotly.graph_objs as go
+#import plotly
+#import plotly.plotly as py
+#import plotly.graph_objs as go
 
 parser = argparse.ArgumentParser()
 parser.add_argument("vb_choisi", help = "verbe à clusteriser", default = None)
@@ -108,10 +108,11 @@ class Desamb:
 
 		self.kmeans = None 
 
-		self.X, self.Yb = [], []
+		self.X, self.Y = [], []
 		self.gold2vec = {}
 		self.pourcentage_graine = 1 #int(pourcentage_graine)
 		self.seeds = []
+		self.g = []
 
 		self.liste_prep = []
 
@@ -273,8 +274,6 @@ class Desamb:
 			datas.append(vector)
 			golds.append(gold)
 
-		self.X = datas
-		self.Y = golds
 
 		#création d'un dico avec key=classe_gold, value=liste des vecteurs associés
 		gold2vec = defaultdict(list)
@@ -282,9 +281,18 @@ class Desamb:
 			gold2vec[golds[i]].append(datas[i])
 
 		self.gold2vec = gold2vec
-		#print("X", self.X)
-		#print("Y", self.Y)
-		#print("gold2vec", [(elt,len(gold2vec[elt])) for elt in gold2vec]) #juste un test 
+
+		for classe in gold2vec:
+			self.X += gold2vec[classe][:40]
+			self.Y +=[classe for i in range(40)]
+
+		gold2vecb = defaultdict(list)
+
+		for i in range(len(self.X)):
+			gold2vecb[self.Y[i]].append(self.X[i])
+
+		self.gold2vec = gold2vecb
+		print("gold2vec", [(elt,len(gold2vecb[elt])) for elt in gold2vecb]) #juste un test 
 
 		"""
 		for gold in self.gold2vec:
@@ -304,9 +312,8 @@ class Desamb:
 			input()"""
 
 		#on peut instancier le Kmeans et créer les seeds mtn qu'on a gold2vec
-		self.kmeans = K_Means(k=len(self.gold2vec))
-		self.seeds = self.create_seeds(len(self.gold2vec)) #a décommenter pour le supervisé
-
+		self.kmeans = K_Means(k=len(self.gold2vec), g=self.g)
+		self.seeds, self.g = self.create_seeds(len(self.gold2vec)) #a décommenter pour le supervisé
 
 
 	def create_seeds(self, nb_clusters):
@@ -319,6 +326,8 @@ class Desamb:
 		#position actuelle dans seeds
 		n = 0
 	
+		g = []
+
 		for gold in self.gold2vec:
 
 			exs = []
@@ -357,8 +366,9 @@ class Desamb:
 			moy = np.mean(exs, axis=0)
 			seeds[n] = moy
 			n+=1
+			g+= [gold]
 
-		return seeds	
+		return (seeds, g)	
 
 
 class K_Means:
@@ -390,36 +400,37 @@ class K_Means:
 		evaluation
 	"""
 
-	def __init__(self, k, tol=0.001, max_iter=30, seeds=None):
+	def __init__(self, k, g, tol=0.001, max_iter=30, seeds=None):
 		self.k = k
 		self.tol = tol
 		self.max_iter = max_iter
 		self.seeds = seeds
 		self.centroids = {}
 		self.classifications = {}
+		self.g = g
 
 	def fit(self, data, golds):
 
 		#self.centroids = {}
-
-		if len(self.seeds==0): 
+		if len(self.seeds)==0: 
 			np.random.shuffle(data)
 			#selectionne les centroids de départ (les deux premiers points de la liste de donnees melangee)
 			for i in range (self.k):
 				self.centroids[i] = data[i] 
-		else: 
-			for i in range (self.k): 
-				self.centroids[i] = self.seeds[i]
+		else:
+			i=0
+			for classe in self.g:
+				self.centroids[classe] = self.seeds[i]
+				i+=1
 
 		#print("centroids: ", self.centroids)
 
 		for i in range (self.max_iter):
 
 			self.classifications = {}
-			#print("i", i)
-			#input()
-			for j in range (self.k):
-				self.classifications[j] = []
+
+			for classe in self.g:
+				self.classifications[classe] = []
 
 			bonnes_rep = 0
 			for k in range(len(data)):
@@ -430,16 +441,16 @@ class K_Means:
 				#distances = [ euclidean_distances( [data[k]] , [self.centroids[centroid]] ) for centroid in self.centroids ]
 				distances = [np.linalg.norm(data[k]-self.centroids[centroid]) for centroid in self.centroids] 
 				classification = distances.index(min(distances)) #renvoie l'indice de la classe/du controide le plus proche
+				classification = self.g[classification]
+
+
+
 
 				self.classifications[classification].append(data[k]) #on ajoute l'exemple  au dico de classification
-				#print("distances", distances)
-				#print("classification", classification)
-				#print("gold", golds[i])
-				#input()
+
 				if classification == golds[k]: bonnes_rep+=1
 
-				#input()
-			print("evaluation epoch n°%s :" % str(i+1))#, "bonnes_rep", bonnes_rep/len(data))
+			print("evaluation epoch n°%s :" % str(i+1), "bonnes_rep", round((bonnes_rep/len(data) *100), 1), "%")
 			pp.pprint(self.eval(data, golds))
 			input()
 
@@ -476,6 +487,7 @@ class K_Means:
 				print(euclidean_distances([self.centroids[i]], [self.centroids[i+1]]))
 			else:
 				print(euclidean_distances([self.centroids[i]], [self.centroids[0]]))"""
+
 
 
 	def predict(self, data):
@@ -528,7 +540,7 @@ d.createX_Y()
 
 # supervisé
 #print(d.seeds)
-d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds) #on réinstancie le kmeans avec nos seeds
+d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds, g=d.g) #on réinstancie le kmeans avec nos seeds
 #print(d.kmeans.seeds)
 d.kmeans.fit(d.X,d.Y)
 
@@ -568,7 +580,7 @@ back = go.Heatmap(x=xx[0][:len(Y)],
                   z=Y,
                   showscale=False,
                   colorscale=[[0, 'green'], [0.5, 'red'], [1.0, 'rgb(0, 0, 255)']])
-"""
+
 
 #afficher les points
 markers = go.Scatter(x=X_2d[:, 0], 
@@ -599,3 +611,4 @@ plotly.offline.plot(fig)
 #plt.savefig("graph_%s_pourcentage_%s" % (d.vb_choisi, int(d.pourcentage_graine)))
      
 plt.savefig("graph_%s_pourcentage_%s" % (d.vb_choisi, int(d.pourcentage_graine)))
+"""
