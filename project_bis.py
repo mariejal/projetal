@@ -281,6 +281,10 @@ class Desamb:
 
 		self.gold2vec = gold2vec
 
+		self.X = datas
+		self.Y = golds
+
+		"""
 		for classe in gold2vec:
 			self.X += gold2vec[classe][:40]
 			self.Y +=[classe for i in range(40)]
@@ -290,10 +294,10 @@ class Desamb:
 		for i in range(len(self.X)):
 			gold2vecb[self.Y[i]].append(self.X[i])
 
-		self.gold2vec = gold2vecb
-		print("gold2vec", [(elt,len(gold2vecb[elt])) for elt in gold2vecb]) #juste un test 
-
-		"""
+		#self.gold2vec = gold2vecb"""
+		print("gold2vec", [(elt,len(gold2vec[elt])) for elt in gold2vec]) #juste un test 
+		
+		
 		for gold in self.gold2vec:
 
 			print("gold", gold)
@@ -308,7 +312,7 @@ class Desamb:
 				#	print(self.gold2vec[gold][i+1])
 				#	print()
 
-			input()"""
+			input()
 
 		#on peut instancier le Kmeans et créer les seeds mtn qu'on a gold2vec
 		self.kmeans = K_Means(k=len(self.gold2vec), g=self.g)
@@ -460,28 +464,31 @@ class K_Means:
 				#méthode A: moyenne de tous les vecteurs du centroid
 
 				#on calcule les nouveaux centroides
-				self.centroids[classification] = np.average(self.classifications[classification], axis=0)
+				#self.centroids[classification] = np.average(self.classifications[classification], axis=0)
 
 
 				#méthode B: moyenne des vecteurs ayant le même sens que le centroid
 
-				"""
-				4_average = []
+				for_average = []
+
 				#on prend que les vecteurs ayant le meme sens que le centroid
 
-				for vecteur in self.centroids[classification]:
+				#print(self.centroids)
+				#print("classification", classificaion)
+				for vecteur in self.classifications[classification]:
 
-					vector_list = vector.tolist()
-					idxTrueClass = listeVec.index(vector_list) #l'index du vecteur dans listeVec
+					#print("vecteur", vecteur)
+					vector_list = vecteur.tolist()
+					idxTrueClass = vector_list.index(vector_list) #l'index du vecteur dans listeVec
 					#print("vecteur: ", vector, "   ", "index : ", idxTrueClass)
 					etiquette = listeEtique[idxTrueClass] #l'etiquette dans la listeEtique
 					if etiquette != classifition: 
 						pass
 					else: 
-						4_average += [vecteur]
+						for_average += [vecteur]
 
-				self.centroids[classification] = np.average(np.array(4_average), axis=0)
-				"""
+				self.centroids[classification] = np.average(np.array(for_average), axis=0)
+				
 
 
 			#on teste si nos centroides sont optimaux   
