@@ -142,7 +142,6 @@ class Desamb:
 		for i in range(len(phr)):
 
 			mot = phr[i].split("\t")
-			#print(mot)
 
 			#--nbr d'arguments + prep
 			#premiere condition = pour les cas ou le gouverneur est qqch comme "4|3"
@@ -457,8 +456,32 @@ class K_Means:
 			prev_centroids = dict(self.centroids) #on stocke les centroids précédents
 
 			for classification in self.classifications:
+				
+				#méthode A: moyenne de tous les vecteurs du centroid
+
 				#on calcule les nouveaux centroides
 				self.centroids[classification] = np.average(self.classifications[classification], axis=0)
+
+
+				#méthode B: moyenne des vecteurs ayant le même sens que le centroid
+
+				"""
+				4_average = []
+				#on prend que les vecteurs ayant le meme sens que le centroid
+
+				for vecteur in self.centroids[classification]:
+
+					vector_list = vector.tolist()
+					idxTrueClass = listeVec.index(vector_list) #l'index du vecteur dans listeVec
+					#print("vecteur: ", vector, "   ", "index : ", idxTrueClass)
+					etiquette = listeEtique[idxTrueClass] #l'etiquette dans la listeEtique
+					if etiquette != classifition: 
+						pass
+					else: 
+						4_average += [vecteur]
+
+				self.centroids[classification] = np.average(np.array(4_average), axis=0)
+				"""
 
 
 			#on teste si nos centroides sont optimaux   
