@@ -19,9 +19,10 @@ from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 from scipy import sparse
 import scipy.spatial.distance as distance
 from sklearn.decomposition import PCA
-#import plotly
-#import plotly.plotly as py
-#import plotly.graph_objs as go
+from sklearn.cluster import KMeans
+import plotly
+import plotly.plotly as py
+import plotly.graph_objs as go
 
 parser = argparse.ArgumentParser()
 parser.add_argument("vb_choisi", help = "verbe à clusteriser")
@@ -590,8 +591,8 @@ d = Desamb(args.vb_choisi, args.pourcentage_graine)
 
 
 ###supervisé
-#d.createX_Y(True) # true pcq on veut creer des seeds
-#d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds, g=d.g) #on réinstancie le kmeans avec nos seeds
+d.createX_Y(True) # true pcq on veut creer des seeds
+d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds, g=d.g) #on réinstancie le kmeans avec nos seeds
 
 #version 2: si tu veux juste utiliser les graines
 #d.kmeans.fit(d.X, d.Y, True, False)
@@ -813,41 +814,58 @@ plt.savefig("résultats_selon_pourcent_graines%s" % (d.vb_choisi))
 """
 
 
-"""
+
 #----------------------------------- plotter le clustering											UTILISATION PCA POUR VISUALISER CLUSTERING
+#avec sklean: on rentre nos données et nos seeds et les mêmes paramètres 
+#mais n'a pas les màj contrôlées
+# solution A: ne peut plotter que le supervisé faible où les graines sont instanciées
+
+# solutions B: inon, on on plotte pas les limites des clusters 
 
 def matplotlib_to_plotly(cmap, pl_entries):
-    h = 1.0/(pl_entries-1)
-    pl_colorscale = []
-    
-    for k in range(pl_entries):
-        C = map(np.uint8, np.array(cmap(k*h)[:3])*255)
-        for i in range(len(C)):
-        	pl_colorscale.append([k*h, 'rgb'+str((C[0], C[1], C[2]))])
-        
-    return pl_colorscale
+	h = 1.0/(pl_entries-1)
+	pl_colorscale = []
+
+	for k in range(pl_entries):
+		C = list(map(np.uint8, np.array(cmap(k*h)[:3])*255))
+		pl_colorscale.append([k*h, 'rgb'+str((C[0], C[1], C[2]))])
+
+	return pl_colorscale
 
 
 pca = PCA(n_components=2)
 X_2d = pca.fit_transform(d.X)
-centroids = np.array([item for item in d.kmeans.centroids.values()])
-c_2d = pca.fit_transform(centroids)
-h = .02
 
+#solution A
+sklearn_Kmeans = KMeans(init=pca.fit_transform(d.kmeans.seeds), n_clusters=d.kmeans.k, n_init=1, max_iter=d.kmeans.max_iter,
+						precompute_distances=False, verbose=0, random_state=None)
+
+sklearn_Kmeans.fit(X_2d)
+
+c_2d = sklearn_Kmeans.cluster_centers_
+
+#solution B
+#centroids = np.array([item for item in d.kmeans.centroids.values()])
+#c_2d = pca.fit_transform(centroids) # /!\ erreur ici si un des centroids est vide
+
+
+h = .02
 
 x_min, x_max = X_2d[:, 0].min() - 1, X_2d[:, 0].max() + 1
 y_min, y_max = X_2d[:, 1].min() - 1, X_2d[:, 1].max() + 1
 xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
-Y = d.Y
 
+#Y = pca.fit_transform(np.array(d.Y).reshape(1, -1))
+#Y = np.array([d.kmeans.predict(reduced_sample) for reduced_sample in np.c_[xx.ravel(), yy.ravel()]])
+Y = sklearn_Kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
+Y = Y.reshape(xx.shape)
 
 #pour afficher les limites des clusters mais foireux pour l'instant
 back = go.Heatmap(x=xx[0][:len(Y)],
                   y=xx[0][:len(Y)],
                   z=Y,
                   showscale=False,
-                  colorscale=[[0, 'green'], [0.5, 'red'], [1.0, 'rgb(0, 0, 255)']])
-
+                  colorscale=matplotlib_to_plotly(plt.cm.Paired, len(Y)))
 
 #afficher les points
 markers = go.Scatter(x=X_2d[:, 0], 
@@ -863,10 +881,15 @@ center = go.Scatter(x=c_2d[:, 0],
                     mode='markers', 
                     marker=dict(
                             size=10, color='red'))
-data=[markers, center]
+#solution A
+data=[back, markers, center]
+
+#solution B
+#data=[markers, center]
 
 layout = go.Layout(title ='K-means clustering on the digits dataset (PCA-reduced data)<br>'
-                           'Centroids are marked with red',
+                           'Centroids are marked with red<br>'
+                           '\n%s' %d.vb_choisi,
                    xaxis=dict(ticks='', showticklabels=True,
                               zeroline=False),
                    yaxis=dict(ticks='', showticklabels=True,
@@ -874,4 +897,3 @@ layout = go.Layout(title ='K-means clustering on the digits dataset (PCA-reduced
 fig = go.Figure(data=data, layout=layout)
 
 plotly.offline.plot(fig)
-"""
