@@ -585,6 +585,7 @@ d = Desamb(args.vb_choisi, args.pourcentage_graine)
 
 ###non supervisé
 # version 1
+#d.createX_Y(False)
 #d.kmeans.fit(d.X, d.Y, False, False)
 
 
