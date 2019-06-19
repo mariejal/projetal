@@ -24,8 +24,9 @@ from sklearn.decomposition import PCA
 #import plotly.graph_objs as go
 
 parser = argparse.ArgumentParser()
-parser.add_argument("vb_choisi", help = "verbe à clusteriser", default = None)
-parser.add_argument("pourcentage_graine", help="nb d'exemple pour constituer une graine", default = 3)
+parser.add_argument("vb_choisi", help = "verbe à clusteriser")
+#parser.add_argument('list', nargs='+', help="nb d'exemple pour constituer une graine")
+parser.add_argument("pourcentage_graine", help="pourcentage d'exemple utilisés pour constituer une graine")
 args = parser.parse_args()
 
 liste_prep = [] #la liste des prep qui peuvent suivre le verbe
@@ -110,7 +111,13 @@ class Desamb:
 
 		self.X, self.Y = [], []
 		self.gold2vec = {}
-		self.pourcentage_graine = 1 #int(pourcentage_graine)
+
+		self.pourcentage_graine = int(pourcentage_graine)
+		"""if type(pourcentage_graine) is int:
+			self.pourcentage_graine = [int(pourcentage_graine)]
+		else:
+				self.pourcentage_graine = [int(pourcent) for pourcent in pourcentage_graine] #on rentre une liste de pourcentage pour plotter 
+		"""
 		self.seeds = []
 		self.g = []
 
@@ -298,7 +305,7 @@ class Desamb:
 		print("gold2vec", [(elt,len(gold2vec[elt])) for elt in gold2vec]) #juste un test 
 		
 		
-		for gold in self.gold2vec:
+		"""for gold in self.gold2vec:
 
 			print("gold", gold)
 			for i in range(len(self.gold2vec[gold])-1):
@@ -312,7 +319,7 @@ class Desamb:
 				#	print(self.gold2vec[gold][i+1])
 				#	print()
 
-			input()
+			input()"""
 
 		#on peut instancier le Kmeans et créer les seeds mtn qu'on a gold2vec
 		self.kmeans = K_Means(k=len(self.gold2vec), g=self.g)
@@ -334,15 +341,11 @@ class Desamb:
 		for gold in self.gold2vec:
 
 			exs = []
-
-			#nomrbe d'exemples utilisés pour cette classe
+				
 			taille_graine = len(self.gold2vec[gold])*(self.pourcentage_graine/100)
-			#print("ex gardés pour", gold, "=", taille_graine)
-			if taille_graine<1: taille_graine=1
-			#input()
-			
-			for i in range(self.pourcentage_graine):#round(taille_graine)): #/!\ mettre qqpart des garde fous sur pourcentage_graine
-												#certaines gold n'ont que 3 ex
+			if taille_graine<1: taille_graine=1 #on utilise au minimum 1 graine
+
+			for i in range(round(taille_graine)):
 
 				#on sélectione un objet au hasard dans la classe voulue
 				#puis on le supprime - du dico gold2vec
@@ -403,7 +406,7 @@ class K_Means:
 		evaluation
 	"""
 
-	def __init__(self, k, g, tol=0.001, max_iter=30, seeds=None):
+	def __init__(self, k, g, tol=0.001, max_iter=10, seeds=None):
 		self.k = k
 		self.tol = tol
 		self.max_iter = max_iter
@@ -411,6 +414,7 @@ class K_Means:
 		self.centroids = {}
 		self.classifications = {}
 		self.g = g
+		self.resultats = [] #sera aussi long que le nbr d'itération
 
 	def fit(self, data, golds):
 
@@ -426,7 +430,7 @@ class K_Means:
 				self.centroids[classe] = self.seeds[i]
 				i+=1
 
-		#print("centroids: ", self.centroids)
+		
 
 		for i in range (self.max_iter):
 
@@ -446,18 +450,21 @@ class K_Means:
 				classification = distances.index(min(distances)) #renvoie l'indice de la classe/du controide le plus proche
 				classification = self.g[classification]
 
-
-
-
 				self.classifications[classification].append(data[k]) #on ajoute l'exemple  au dico de classification
 
 				if classification == golds[k]: bonnes_rep+=1
 
-			print("evaluation epoch n°%s :" % str(i+1), "bonnes_rep", round((bonnes_rep/len(data) *100), 1), "%")
-			pp.pprint(self.eval(data, golds))
-			input()
+			#print("evaluation epoch n°%s :" % str(i+1), "bonnes_rep", round((bonnes_rep/len(data) *100), 1), "%")
+			#pp.pprint(self.eval(data, golds))
+			self.resultats += [round((bonnes_rep/len(data) *100), 1)]
+			#input()
+
+			#plotter résultats graines ici
 
 			prev_centroids = dict(self.centroids) #on stocke les centroids précédents
+
+			tmp = [list(ex) for ex in data]
+			listeVec = tmp
 
 			for classification in self.classifications:
 				
@@ -468,7 +475,6 @@ class K_Means:
 
 
 				#méthode B: moyenne des vecteurs ayant le même sens que le centroid
-
 				for_average = []
 
 				#on prend que les vecteurs ayant le meme sens que le centroid
@@ -479,17 +485,17 @@ class K_Means:
 
 					#print("vecteur", vecteur)
 					vector_list = vecteur.tolist()
-					idxTrueClass = vector_list.index(vector_list) #l'index du vecteur dans listeVec
+
+					idxTrueClass = listeVec.index(vector_list) #l'index du vecteur dans listeVec
 					#print("vecteur: ", vector, "   ", "index : ", idxTrueClass)
-					etiquette = listeEtique[idxTrueClass] #l'etiquette dans la listeEtique
-					if etiquette != classifition: 
+					etiquette = golds[idxTrueClass] #l'etiquette dans la listeEtique
+					if etiquette != classification: 
 						pass
 					else: 
 						for_average += [vecteur]
 
 				self.centroids[classification] = np.average(np.array(for_average), axis=0)
 				
-
 
 			#on teste si nos centroides sont optimaux   
 			#optimized = True
@@ -558,9 +564,6 @@ class K_Means:
 ####################################################### MAIN
 
 d = Desamb(args.vb_choisi, args.pourcentage_graine)
-d.createX_Y()
-
-
 # non supervisé
 #d.kmeans.fit(d.X, d.Y)
 #print("\nfinal eval:")
@@ -570,13 +573,96 @@ d.createX_Y()
 
 # supervisé
 #print(d.seeds)
+d.createX_Y()
 d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds, g=d.g) #on réinstancie le kmeans avec nos seeds
 #print(d.kmeans.seeds)
 d.kmeans.fit(d.X,d.Y)
+print(d.kmeans.resultats)
+#input()
+
+"""
+# ---------------------------------- lancer plusieurs fois le kmeans
+
+lances_Kmeans = 10
+res_lances = []
+
+for i in range(lances_Kmeans):
+
+	# non supervisé
+	#d.kmeans.fit(d.X, d.Y)
+	#print("\nfinal eval:")
+	#print(pp.pprint(d.kmeans.eval(d.X, d.Y)))
+	#input()
+	#print("centroids", d.kmeans.centroids)
+
+	# supervisé
+	#print(d.seeds)
+	d.createX_Y()
+	d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds, g=d.g) #on réinstancie le kmeans avec nos seeds
+	#print(d.kmeans.seeds)
+	d.kmeans.fit(d.X,d.Y)
+	print(d.kmeans.resultats)
+	#input()
+	res_lances += [max(d.kmeans.resultats)]
+
+fig = plt.figure()
+y = [i+1 for i in range(10)]
+plt.plot(y, res_lances)
+plt.yticks(res_lances)
+plt.xticks(y)
+plt.ylabel("taux de bonnes réponses")
+plt.xlabel("i-eme lancé du Kmeans")
+plt.title("Performance Kmeans sur %s lances\n%s" % (str(len(y)), d.vb_choisi))
+fig.canvas.draw()
+plt.tight_layout()
+plt.savefig("résultats_sur_%s_lances_\n%s" % (str(len(y)), d.vb_choisi))
+"""
+
+"""
+#liste_pourcentages = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+#res_pourcentages = []
+# ----------------------------------- plotter l'evolution selon création des graines
+for pourcent in liste_pourcentages:
+	
+	# on écrase l'ancien pourcentage à chaque fois
+
+	d.pourcentage_graine = pourcent
+	#print("---------- pourcentage graine", d.pourcentage_graine)
+	d.createX_Y()
 
 
-#--------------graphiques / comparaisons 
 
+	# non supervisé
+	#d.kmeans.fit(d.X, d.Y)
+	#print("\nfinal eval:")
+	#print(pp.pprint(d.kmeans.eval(d.X, d.Y)))
+	#input()
+	#print("centroids", d.kmeans.centroids)
+
+	# supervisé
+	#print(d.seeds)
+	d.kmeans = K_Means(k=len(d.gold2vec), seeds=d.seeds, g=d.g) #on réinstancie le kmeans avec nos seeds
+	#print(d.kmeans.seeds)
+	d.kmeans.fit(d.X,d.Y)
+	print(d.kmeans.resultats)
+	#input()
+	res_pourcentages += [max(d.kmeans.resultats)]
+
+#for i in range(len(res_pourcentages)):
+print(res_pourcentages)
+fig = plt.figure()
+plt.plot(liste_pourcentages, res_pourcentages)
+plt.yticks(res_pourcentages)
+plt.xticks(liste_pourcentages)
+plt.ylabel("taux de bonnes réponses")
+plt.xlabel("x % d'exemples utilisés pour instancier les graines")
+plt.title("Performance Kmeans selon pourcentage d'ex utilisés pr graines\n%s" % (d.vb_choisi))
+fig.canvas.draw()
+plt.tight_layout()
+plt.savefig("résultats_selon_pourcent_graines%s" % (d.vb_choisi))
+"""
+
+#----------------------------------- plotter le clustering
 
 def matplotlib_to_plotly(cmap, pl_entries):
     h = 1.0/(pl_entries-1)
@@ -590,7 +676,7 @@ def matplotlib_to_plotly(cmap, pl_entries):
     return pl_colorscale
 
 
-
+"""
 pca = PCA(n_components=2)
 X_2d = pca.fit_transform(d.X)
 centroids = np.array([item for item in d.kmeans.centroids.values()])
@@ -603,7 +689,7 @@ y_min, y_max = X_2d[:, 1].min() - 1, X_2d[:, 1].max() + 1
 xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
 Y = d.Y
 
-"""
+
 #pour afficher les limites des clusters mais foireux pour l'instant
 back = go.Heatmap(x=xx[0][:len(Y)],
                   y=xx[0][:len(Y)],
